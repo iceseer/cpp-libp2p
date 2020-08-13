@@ -28,12 +28,12 @@ TEST_F(IdentifyTest, RealConnect) {
   auto host = injector.create<std::shared_ptr<libp2p::Host>>();
 
   auto identify = injector.create<std::shared_ptr<libp2p::protocol::Identify>>();
-  identify->start();
+  //identify->start();
 
   // create io_context - in fact, thing, which allows us to execute async
   // operations
   auto context = injector.create<std::shared_ptr<boost::asio::io_context>>();
-  context->post([host{std::move(host)}] {  // NOLINT
+  context->post([host{std::move(host)}, &identify] {  // NOLINT
     auto server_ma_res = libp2p::multi::Multiaddress::create(
         "/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWNoMM7DGZZiEoeTYmcmFMW16Xr3dfs2tbjE7GJdXgeeSb");  // NOLINT
     if (!server_ma_res) {
@@ -95,6 +95,22 @@ TEST_F(IdentifyTest, RealConnect) {
                    << stream_res.error().message();
 
         });*/
+
+    //targetPeerAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/ipfs/%s", pid))
+    //targetAddr := ipfsaddr.Decapsulate(targetPeerAddr)
+
+    // We have a peer ID and a targetAddr so we add it to the peerstore
+    // so LibP2P knows how to contact it
+    //ha.Peerstore().AddAddr(peerid, targetAddr, peerstore.PermanentAddrTTL)
+
+    host->getPeerRepository().getAddressRepository().addAddresses(
+        server_peer_id, gsl::span<const libp2p::multi::Multiaddress>(&server_ma, 1), libp2p::peer::ttl::kPermanent);
+
+    host->newStream(peer_info, "/ipfs/id/1.0.0",
+        [&identify](auto &&stream_res) {
+          identify->handle(std::move(stream_res));
+        });
+
 
     host->newStream(peer_info, "/sup/sync/2", [&](auto &&stream_res) {
       if (!stream_res) {
