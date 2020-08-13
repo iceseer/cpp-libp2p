@@ -347,7 +347,7 @@ namespace libp2p::protocol {
       log_->debug("cannot update listen addresses of the peer {}: {}",
                   peer_id.toBase58(), add_res.error().message());
 
-      addr_repo.addAddresses(peer_id, listen_addresses, peer::ttl::kTransient);
+      //addr_repo.addAddresses(peer_id, listen_addresses, peer::ttl::kTransient);
     }
 
     // memorize the addresses
