@@ -28,7 +28,7 @@ TEST_F(IdentifyTest, RealConnect) {
   auto host = injector.create<std::shared_ptr<libp2p::Host>>();
 
   auto identify = injector.create<std::shared_ptr<libp2p::protocol::Identify>>();
-  //identify->start();
+  identify->start();
 
   // create io_context - in fact, thing, which allows us to execute async
   // operations
@@ -106,10 +106,10 @@ TEST_F(IdentifyTest, RealConnect) {
     host->getPeerRepository().getAddressRepository().addAddresses(
         server_peer_id, gsl::span<const libp2p::multi::Multiaddress>(&server_ma, 1), libp2p::peer::ttl::kPermanent);
 
-    host->newStream(peer_info, "/ipfs/id/1.0.0",
+/*    host->newStream(peer_info, "/ipfs/id/1.0.0",
         [&identify](auto &&stream_res) {
           identify->handle(std::move(stream_res));
-        });
+        });*/
 
 
     host->newStream(peer_info, "/sup/sync/2", [&](auto &&stream_res) {
