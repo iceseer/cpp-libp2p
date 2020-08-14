@@ -6,6 +6,7 @@
 add_subdirectory(common)
 add_subdirectory(kademlia)
 add_subdirectory(gossip)
+add_subdirectory(messages)
 
 addtest(identify_test
     identify_test.cpp
