@@ -15,10 +15,11 @@ namespace libp2p::basic {
    */
   class ProtobufMessageReadWriter
       : public std::enable_shared_from_this<ProtobufMessageReadWriter> {
+
+   public:
     template <typename ProtoMsgType>
     using ReadCallbackFunc = std::function<void(outcome::result<ProtoMsgType>)>;
 
-   public:
     /**
      * Create an instance of read/writer
      * @param read_writer, with the help of which messages are read & written

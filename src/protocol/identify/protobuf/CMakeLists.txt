@@ -6,3 +6,7 @@
 add_proto_library(p2p_identify_proto
     identify.proto
     )
+
+add_proto_library(p2p_block_request_proto
+    block_request.proto
+    )

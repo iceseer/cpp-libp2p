@@ -3,6 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_proto_library(p2p_sub_sync_proto
-        block_request.proto
-        )
+#add_proto_library(p2p_sub_sync_proto
+#        block_request.proto
+#        )

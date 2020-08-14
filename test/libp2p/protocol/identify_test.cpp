@@ -13,7 +13,14 @@
 #include <libp2p/multi/uvarint.hpp>
 #include <libp2p/network/connection_manager.hpp>
 #include <libp2p/network/network.hpp>
+#include <libp2p/basic/message_read_writer_uvarint.hpp>
+#include <libp2p/basic/message_read_writer_bigendian.hpp>
+#include <libp2p/basic/protobuf_message_read_writer.hpp>
 #include <libp2p/injector/host_injector.hpp>
+
+#include <generated/protocol/identify/protobuf/block_request.pb.h>
+//#include <generated/protocol/identify/protobuf/>
+//#include <>
 
 class IdentifyTest : public testing::Test {
  public:
@@ -130,21 +137,54 @@ TEST_F(IdentifyTest, RealConnect) {
       };
       auto stream_p = std::move(stream_res.value());
 
-      std::vector<uint8_t> read_buf{};
+      //proto2::Message::
+      auto msg = std::make_shared<api::v1::BlockRequest>();
+      msg->set_fields(19);
+      uint8_t s = 5;
+      msg->set_number(&s, 1);
+      msg->set_direction(api::v1::Direction::Descending);
+      msg->set_max_blocks(1);
+
+      //MessageReadWriterBigEndian
+      //auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(std::make_shared<libp2p::basic::MessageReadWriterUvarint>(stream_p));
+      auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(std::make_shared<libp2p::basic::MessageReadWriterUvarint>(stream_p));
+      rw->write(*msg, [](libp2p::outcome::result<size_t> res) {
+        auto q = res.value();
+        std::cerr << "Written: " << q << std::endl;
+        //FAIL() << "Write res: " << res.error().message();
+        ASSERT_TRUE(res) << res.error().message();
+      });
+
+      //{8, 19, 26, 1, 5, 40, 1, 48, 1}
+      //{9, 8, 19, 26, 1, 5, 40, 1, 48, 1}
+      //libp2p::outcome::result<api::v1::BlockResponse> res) {
+
+      libp2p::basic::ProtobufMessageReadWriter::ReadCallbackFunc<api::v1::BlockResponse> f =
+          [](libp2p::outcome::result<api::v1::BlockResponse> res) {
+        auto q = res.value();
+        ASSERT_TRUE(res) << res.error().message();
+      };
+
+      rw->read(f);
+
+      //identify::pb::Identify id;
+      //rw->write()
+
+/*      std::vector<uint8_t> read_buf{};
       read_buf.resize(10);
-      stream_p->read(read_buf, 10, [read_buf, stream_p](auto &&read_res) {
+      stream_p->read(read_buf, 5, [read_buf, stream_p](auto &&read_res) {
         FAIL() << "Read res: " << read_res.error().message();
 
         ASSERT_TRUE(read_res) << read_res.error().message();
         FAIL() << "!!!!!!!!!!!!!!!!!!!";
-      });
+      });*/
 
       //strcpy((char*)&request_buf[0], "Hello!!!!!");
-      stream_p->write(
+      /*stream_p->write(
           request_buf,
           request_buf.size(),
           [request_buf, stream_p](auto &&write_res) {
-            ASSERT_TRUE(write_res) << write_res.error().message();
+            ASSERT_TRUE(write_res) << write_res.error().message();*/
 /*            std::vector<uint8_t> read_buf{};
             read_buf.resize(10);
             stream_p->read(read_buf, 10, [read_buf, stream_p](auto &&read_res) {
@@ -156,7 +196,7 @@ TEST_F(IdentifyTest, RealConnect) {
 
             //ASSERT_TRUE(write_res) << write_res.error().message();
             //ASSERT_EQ(request_buf.size(), write_res.value());
-          });
+          //});
     });
   });
 
