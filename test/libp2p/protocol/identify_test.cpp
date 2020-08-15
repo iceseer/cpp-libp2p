@@ -136,6 +136,7 @@ TEST_F(IdentifyTest, RealConnect) {
           0x1, 0x64, 0x67, 0x45, 0x8b, 0x6b, 0x0, 0x0, 0x0, 0x0, 0x13, 0x1, 0x5, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x5, 0x0, 0x0, 0x0
       };
       auto stream_p = std::move(stream_res.value());
+      ASSERT_FALSE(stream_p->isClosedForWrite());
 
       //proto2::Message::
       auto msg = std::make_shared<api::v1::BlockRequest>();
@@ -148,24 +149,32 @@ TEST_F(IdentifyTest, RealConnect) {
       //MessageReadWriterBigEndian
       //auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(std::make_shared<libp2p::basic::MessageReadWriterUvarint>(stream_p));
       auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(std::make_shared<libp2p::basic::MessageReadWriterUvarint>(stream_p));
-      rw->write(*msg, [](libp2p::outcome::result<size_t> res) {
+      rw->write(*msg, [stream_p{std::move(stream_p)}](libp2p::outcome::result<size_t> res) {
         auto q = res.value();
         std::cerr << "Written: " << q << std::endl;
         //FAIL() << "Write res: " << res.error().message();
         ASSERT_TRUE(res) << res.error().message();
+
+        stream_p->close([stream_p{std::move(stream_p)}] (auto res) {
+          ASSERT_TRUE(res) << res.error().message();
+          ASSERT_TRUE(stream_p->isClosedForWrite());
+          //FAIL() << "Close res: " << res.error().message();
+
+          libp2p::basic::ProtobufMessageReadWriter::ReadCallbackFunc<api::v1::BlockResponse> f =
+              [](libp2p::outcome::result<api::v1::BlockResponse> res) {
+                auto q = res.value();
+                ASSERT_TRUE(res) << res.error().message();
+              };
+
+          auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(stream_p);
+          rw->read(std::move(f));
+        });
       });
 
       //{8, 19, 26, 1, 5, 40, 1, 48, 1}
       //{9, 8, 19, 26, 1, 5, 40, 1, 48, 1}
       //libp2p::outcome::result<api::v1::BlockResponse> res) {
 
-      libp2p::basic::ProtobufMessageReadWriter::ReadCallbackFunc<api::v1::BlockResponse> f =
-          [](libp2p::outcome::result<api::v1::BlockResponse> res) {
-        auto q = res.value();
-        ASSERT_TRUE(res) << res.error().message();
-      };
-
-      rw->read(f);
 
       //identify::pb::Identify id;
       //rw->write()
