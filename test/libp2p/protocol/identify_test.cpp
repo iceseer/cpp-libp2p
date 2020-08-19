@@ -4,10 +4,12 @@
  */
 
 #include <libp2p/protocol/identify.hpp>
+#include <libp2p/protocol/ping.hpp>
 
 #include <vector>
 
 #include <generated/protocol/identify/protobuf/identify.pb.h>
+
 #include <gtest/gtest.h>
 #include <libp2p/common/literals.hpp>
 #include <libp2p/multi/uvarint.hpp>
@@ -35,14 +37,19 @@ TEST_F(IdentifyTest, RealConnect) {
   auto host = injector.create<std::shared_ptr<libp2p::Host>>();
 
   auto identify = injector.create<std::shared_ptr<libp2p::protocol::Identify>>();
-  identify->start();
+  identify->onIdentifyReceived([](auto const &peer_id) {
+          });
+
+
+  //auto ping = injector.create<std::shared_ptr<libp2p::protocol::Ping>>();
 
   // create io_context - in fact, thing, which allows us to execute async
   // operations
   auto context = injector.create<std::shared_ptr<boost::asio::io_context>>();
   context->post([host{std::move(host)}, &identify] {  // NOLINT
     auto server_ma_res = libp2p::multi::Multiaddress::create(
-        "/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWNoMM7DGZZiEoeTYmcmFMW16Xr3dfs2tbjE7GJdXgeeSb");  // NOLINT
+        //"/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWNoMM7DGZZiEoeTYmcmFMW16Xr3dfs2tbjE7GJdXgeeSb");  // NOLINT
+        "/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp");
     if (!server_ma_res) {
       std::cerr << "unable to create server multiaddress: "
                 << server_ma_res.error().message() << std::endl;
@@ -50,7 +57,6 @@ TEST_F(IdentifyTest, RealConnect) {
     }
 
     std::string t{server_ma_res.value().getStringAddress()};
-
     auto server_ma = std::move(server_ma_res.value());
 
     auto server_peer_id_str = server_ma.getPeerId();
@@ -118,6 +124,17 @@ TEST_F(IdentifyTest, RealConnect) {
           identify->handle(std::move(stream_res));
         });*/
 
+    auto ma =
+        libp2p::multi::Multiaddress::create("/ip4/127.0.0.1/tcp/40010").value();
+    auto listen_res = host->listen(ma);
+    if (!listen_res) {
+      std::cerr << "host cannot listen the given multiaddress: "
+                << listen_res.error().message() << "\n";
+      std::exit(EXIT_FAILURE);
+    }
+
+    identify->start();
+    host->start();
 
     host->newStream(peer_info, "/sup/sync/2", [&](auto &&stream_res) {
       if (!stream_res) {
@@ -133,22 +150,47 @@ TEST_F(IdentifyTest, RealConnect) {
       auto request_buf = scale::encode(message).value();*/
 
       std::vector<uint8_t> request_buf = {
-          0x1, 0x64, 0x67, 0x45, 0x8b, 0x6b, 0x0, 0x0, 0x0, 0x0, 0x13, 0x1, 0x5, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x5, 0x0, 0x0, 0x0
+          44, 8, 128, 128, 128, 152, 1, 18, 32, 52,
+          189, 238, 44, 52, 228, 153, 78, 3, 11,
+          253, 252, 168, 165, 91, 172, 110, 34,
+          30, 172, 203, 223, 102, 173, 232, 127,
+          77, 55, 193, 186, 63, 222, 40, 1, 48, 1
       };
       auto stream_p = std::move(stream_res.value());
       ASSERT_FALSE(stream_p->isClosedForWrite());
 
+      stream_p->write(
+          request_buf,
+          request_buf.size(),
+          [request_buf, stream_p](auto &&write_res) {
+            /*std::vector<uint8_t> read_buf{};
+            read_buf.resize(10);
+            stream_p->read(read_buf, 10, [read_buf, stream_p](auto &&read_res) {
+              FAIL() << "Read res: " << read_res.error().message();
+              ASSERT_TRUE(read_res) << read_res.error().message();
+            });*/
+
+            stream_p->close([stream_p{std::move(stream_p)}] (auto res) {
+              std::vector<uint8_t> read_buf{};
+              read_buf.resize(10);
+              stream_p->read(read_buf, 10, [read_buf, stream_p](auto &&read_res) {
+                FAIL() << "Read res: " << read_res.error().message();
+                ASSERT_TRUE(read_res) << read_res.error().message();
+              });
+            });
+          });
+
       //proto2::Message::
-      auto msg = std::make_shared<api::v1::BlockRequest>();
+      /*auto msg = std::make_shared<api::v1::BlockRequest>();
       msg->set_fields(19);
       uint8_t s = 5;
       msg->set_number(&s, 1);
       msg->set_direction(api::v1::Direction::Descending);
-      msg->set_max_blocks(1);
+      msg->set_max_blocks(6);*/
 
       //MessageReadWriterBigEndian
       //auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(std::make_shared<libp2p::basic::MessageReadWriterUvarint>(stream_p));
-      auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(std::make_shared<libp2p::basic::MessageReadWriterUvarint>(stream_p));
+      /*auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(std::make_shared<libp2p::basic::MessageReadWriterUvarint>(stream_p));
       rw->write(*msg, [stream_p{std::move(stream_p)}](libp2p::outcome::result<size_t> res) {
         auto q = res.value();
         std::cerr << "Written: " << q << std::endl;
@@ -158,6 +200,7 @@ TEST_F(IdentifyTest, RealConnect) {
         stream_p->close([stream_p{std::move(stream_p)}] (auto res) {
           ASSERT_TRUE(res) << res.error().message();
           ASSERT_TRUE(stream_p->isClosedForWrite());
+          ASSERT_FALSE(stream_p->isClosedForRead());
           //FAIL() << "Close res: " << res.error().message();
 
           libp2p::basic::ProtobufMessageReadWriter::ReadCallbackFunc<api::v1::BlockResponse> f =
@@ -169,7 +212,7 @@ TEST_F(IdentifyTest, RealConnect) {
           auto rw = std::make_shared<libp2p::basic::ProtobufMessageReadWriter>(stream_p);
           rw->read(std::move(f));
         });
-      });
+      });*/
 
       //{8, 19, 26, 1, 5, 40, 1, 48, 1}
       //{9, 8, 19, 26, 1, 5, 40, 1, 48, 1}
@@ -210,9 +253,12 @@ TEST_F(IdentifyTest, RealConnect) {
   });
 
   try {
+    //ping->start();
     context->run();
   } catch (std::exception &e) {
     std::cout << e.what();
   }
+
+  int p =0; ++p;
 }
 

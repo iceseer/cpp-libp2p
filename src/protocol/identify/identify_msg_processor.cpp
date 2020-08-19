@@ -145,13 +145,14 @@ namespace libp2p::protocol {
 
     log_->info("received an identify message from peer {}, {}", peer_id_str,
                peer_addr_str);
-    stream->close([self{shared_from_this()}, p = std::move(peer_id_str),
+    sendIdentify(stream);
+/*    stream->close([self{shared_from_this()}, p = std::move(peer_id_str),
                    a = std::move(peer_addr_str)](auto &&res) {
       if (!res) {
         self->log_->error("cannot close the stream to peer {}, {}: {}", p, a,
                           res.error().message());
       }
-    });
+    });*/
 
     auto &&msg = std::move(msg_res.value());
 
