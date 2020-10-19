@@ -133,6 +133,24 @@ TEST_F(IdentifyTest, RealConnect) {
       std::exit(EXIT_FAILURE);
     }
 
+    host->setProtocolHandler(
+        "/sup/transactions/1",
+        [](auto &&stream) {
+          //auto read_writer = std::make_shared<MessageReadWriter>(stream);
+/*          if (!read_res) {
+            return cb(read_res.error());
+          }
+
+          auto msg_res = scale::decode<MsgType>(*read_res.value());
+          if (!msg_res) {
+            return cb(msg_res.error());
+          }
+
+          return cb(std::move(msg_res.value()));*/
+          int p = 0; ++p;
+
+        });
+
     identify->start();
     host->start();
 
