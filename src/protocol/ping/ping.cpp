@@ -18,7 +18,10 @@ namespace libp2p::protocol {
         bus_{bus},
         io_context_{io_context},
         rand_gen_{std::move(rand_gen)},
-        config_{config} {}
+        config_{config} {
+    config_.timeout = 30000;
+    config_.message_size = 32;
+  }
 
   peer::Protocol Ping::getProtocolId() const {
     return detail::kPingProto;

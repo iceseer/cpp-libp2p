@@ -34,6 +34,7 @@ namespace libp2p::injector {
         di::bind<peer::AddressRepository>.template to<peer::InmemAddressRepository>(),
         di::bind<peer::KeyRepository>.template to<peer::InmemKeyRepository>(),
         di::bind<peer::ProtocolRepository>.template to<peer::InmemProtocolRepository>(),
+        di::bind<libp2p::crypto::random::RandomGenerator>.template to<libp2p::crypto::random::BoostRandomGenerator>(),
 
         // user-defined overrides...
         std::forward<decltype(args)>(args)...

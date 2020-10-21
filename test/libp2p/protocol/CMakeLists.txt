@@ -14,6 +14,7 @@ addtest(identify_test
 target_link_libraries(identify_test
     p2p_identify
     p2p_literals
+    p2p_ping
     )
 
 addtest(identify_delta_test

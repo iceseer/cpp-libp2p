@@ -35,6 +35,8 @@ namespace libp2p::protocol {
         identity_manager_{identity_manager},
         key_marshaller_{std::move(key_marshaller)} {
     BOOST_ASSERT(key_marshaller_);
+
+    log_->info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   }
 
   boost::signals2::connection IdentifyMessageProcessor::onIdentifyReceived(
@@ -82,6 +84,7 @@ namespace libp2p::protocol {
 
     // write the resulting Protobuf message
     auto rw = std::make_shared<basic::ProtobufMessageReadWriter>(stream);
+    log_->info("WRITE IDENTIFY");
     rw->write<identify::pb::Identify>(
         msg,
         [self{shared_from_this()},
@@ -145,14 +148,13 @@ namespace libp2p::protocol {
 
     log_->info("received an identify message from peer {}, {}", peer_id_str,
                peer_addr_str);
-    sendIdentify(stream);
-/*    stream->close([self{shared_from_this()}, p = std::move(peer_id_str),
+    stream->close([self{shared_from_this()}, p = std::move(peer_id_str),
                    a = std::move(peer_addr_str)](auto &&res) {
       if (!res) {
         self->log_->error("cannot close the stream to peer {}, {}: {}", p, a,
                           res.error().message());
       }
-    });*/
+    });
 
     auto &&msg = std::move(msg_res.value());
 
@@ -347,8 +349,6 @@ namespace libp2p::protocol {
     if (!add_res) {
       log_->debug("cannot update listen addresses of the peer {}: {}",
                   peer_id.toBase58(), add_res.error().message());
-
-      //addr_repo.addAddresses(peer_id, listen_addresses, peer::ttl::kTransient);
     }
 
     // memorize the addresses

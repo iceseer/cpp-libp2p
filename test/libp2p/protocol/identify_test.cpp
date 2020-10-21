@@ -72,15 +72,21 @@ enum {
 TEST_F(IdentifyTest, RealConnect) {
   auto injector = libp2p::injector::makeHostInjector();
   auto host = injector.create<std::shared_ptr<libp2p::Host>>();
-
-  auto identify =
-      injector.create<std::shared_ptr<libp2p::protocol::Identify>>();
-
   auto context = injector.create<std::shared_ptr<boost::asio::io_context>>();
-  context->post([host{std::move(host)}, identify] {  // NOLINT
+  auto identify = injector.create<std::shared_ptr<libp2p::protocol::Identify>>();
+  //auto rnd_gen = injector.create<std::shared_ptr<libp2p::crypto::random::CSPRNG>>();
+
+
+  auto ping = injector.create<std::shared_ptr<libp2p::protocol::Ping>>();
+
+  /*std::shared_ptr<Ping> ping_ = std::make_shared<Ping>(
+      host_, bus_, io_context_, rand_gen_, PingConfig{1, kPingMsgSize});*/
+
+
+  context->post([host{std::move(host)}, identify, ping] {  // NOLINT
     auto server_ma_res = libp2p::multi::Multiaddress::create(
-        //"/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWNoMM7DGZZiEoeTYmcmFMW16Xr3dfs2tbjE7GJdXgeeSb");  // NOLINT
-        "/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp");
+        "/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWNoMM7DGZZiEoeTYmcmFMW16Xr3dfs2tbjE7GJdXgeeSb");  // NOLINT
+        //"/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp");
     if (!server_ma_res) {
       std::cerr << "unable to create server multiaddress: "
                 << server_ma_res.error().message() << std::endl;
@@ -117,36 +123,56 @@ TEST_F(IdentifyTest, RealConnect) {
                                tr("handled identify", stream);
                                identify->handle(stream);
                              });
+    host->setProtocolHandler(ping->getProtocolId(),
+                             [ping](auto &&stream) {
+                               tr("handled ping", stream);
+                               ping->handle(stream);
+                             });
+
+
 
     host->setProtocolHandler("/sup/transactions/1", [](auto stream) {
-      std::vector<uint8_t> buffer(kReadCount);
-      if (!stream) {
-        tr_error("handled sup/transactions", stream, "ERROR");
-        return;
-      } else {
-        tr("handled sup/transactions", stream);
+      {
+        std::vector<uint8_t> buffer(1);
+        gsl::span<uint8_t> b(buffer);
+        tr("READ handshake", stream);
+        stream->read(
+            b, b.size(), [buffer{std::move(buffer)}, stream](auto res) mutable {
+              if (res.has_error()) {
+                tr_error("READ handshake result an error",
+                         stream, res.error().message());
+                return;
+              }
+              gsl::span<uint8_t> b(buffer);
+              tr("WRITE handshake", stream);
+              stream->write(
+                  b, b.size(),
+                  [buffer{std::move(buffer)}, stream](auto res) mutable {
+                    if (res.has_error()) {
+                      tr_error("WRITE handshake result an error",
+                               stream, res.error().message());
+                      return;
+                    }
+                    gsl::span<uint8_t> b(buffer);
+                    tr("READ data", stream);
+                    stream->read(b, b.size(),
+                                 [buffer{std::move(buffer)}, stream](auto res) {
+                                   if (res.has_error()) {
+                                     tr_error("READ data result an error",
+                                              stream, res.error().message());
+                                   } else {
+                                     tr(fmt::format("READ data COMPLETE: {}", res.value()), stream);
+                                   }
+                                   int p = 0;
+                                   ++p;
+                                 });
+                  });
+            });
       }
-
-      gsl::span<uint8_t> r(buffer);
-      stream->read(
-          r, kReadCount,
-          [buffer{std::move(buffer)}, stream](auto result) mutable {
-            if (!result) {
-              tr_error("read/handled sup/transactions", stream,
-                       result.error().message());
-              return;
-            } else {
-              gsl::span<uint8_t> r(buffer.data(),
-                                   gsl::span<uint8_t>::index_type(kReadCount));
-              tr(fmt::format("read/handled sup/transactions {} bytes:\n\t{}",
-                             result.value(), libp2p::common::hex_lower(r)),
-                 stream);
-            }
-          });
     });
 
     identify->start();
-    host->start();
+    //host->start();
 
     /*    host->newStream(
             peer_info, identify->getProtocolId(),
@@ -154,7 +180,9 @@ TEST_F(IdentifyTest, RealConnect) {
               identify->handle(stream_res);
             });*/
 
-    host->newStream(peer_info, "/sup/transactions/1", [&](auto &&stream_res) {
+    host->connect(peer_info);
+
+    /*host->newStream(peer_info, "/sup/transactions/1", [&](auto &&stream_res) {
       if (!stream_res) {
         tr_error("initiated sup/transactions", {},
                  stream_res.error().message());
@@ -162,7 +190,7 @@ TEST_F(IdentifyTest, RealConnect) {
       } else {
         tr("initiated sup/transactions", stream_res.value());
       }
-    });
+    });*/
 
     /*    host->newStream(peer_info, "/sup/sync/2", [&](auto &&stream_res) {
           if (!stream_res) {
