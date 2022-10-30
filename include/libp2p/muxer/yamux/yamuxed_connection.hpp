@@ -200,7 +200,7 @@ namespace libp2p::connection {
     struct Test {
         Buffer buffer;
         ~Test() {
-            int p = 0; ++p;
+            assert(false);
         }
     };
 
