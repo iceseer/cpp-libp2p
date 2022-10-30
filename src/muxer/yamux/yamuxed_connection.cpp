@@ -58,6 +58,7 @@ namespace libp2p::connection {
     assert(config_.maximum_streams > 0);
     assert(config_.maximum_window_size >= YamuxFrame::kInitialWindowSize);
 
+    std::cout << "2314981235767815 Create buffer\n";
     raw_read_buffer_->buffer.resize(YamuxFrame::kInitialWindowSize + 4096);
     new_stream_id_ = (connection_->isInitiator() ? 1 : 2);
   }

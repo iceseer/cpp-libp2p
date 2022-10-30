@@ -7,6 +7,7 @@
 #define LIBP2P_YAMUXED_CONNECTION_HPP
 
 #include <unordered_map>
+#include <iostream>
 
 #include <libp2p/basic/read_buffer.hpp>
 #include <libp2p/basic/scheduler.hpp>
@@ -200,7 +201,7 @@ namespace libp2p::connection {
     struct Test {
         Buffer buffer;
         ~Test() {
-            assert(false);
+            std::cout << "71476825636254 ~Test\n";
         }
     };
 
