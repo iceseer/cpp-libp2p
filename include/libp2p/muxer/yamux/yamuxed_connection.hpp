@@ -36,7 +36,7 @@ namespace libp2p::connection {
     YamuxedConnection &operator=(const YamuxedConnection &other) = delete;
     YamuxedConnection(YamuxedConnection &&other) = delete;
     YamuxedConnection &operator=(YamuxedConnection &&other) = delete;
-    ~YamuxedConnection() override = default;
+    ~YamuxedConnection();
 
     /**
      * Create a new YamuxedConnection instance

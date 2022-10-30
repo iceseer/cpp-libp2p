@@ -63,6 +63,10 @@ namespace libp2p::connection {
     new_stream_id_ = (connection_->isInitiator() ? 1 : 2);
   }
 
+  YamuxedConnection::~YamuxedConnection() {
+    std::cout << "53476687231581 Destroy YamuxedConnection\n";
+  }
+
   void YamuxedConnection::start() {
     if (started_) {
       log()->error("already started (double start)");
