@@ -33,7 +33,7 @@ namespace libp2p::connection {
       : config_(config),
         connection_(std::move(connection)),
         scheduler_(std::move(scheduler)),
-        raw_read_buffer_(std::make_shared<Buffer>()),
+        raw_read_buffer_(std::make_shared<Test>()),
         reading_state_(
             [this](boost::optional<YamuxFrame> header) {
               return processHeader(std::move(header));
@@ -58,7 +58,7 @@ namespace libp2p::connection {
     assert(config_.maximum_streams > 0);
     assert(config_.maximum_window_size >= YamuxFrame::kInitialWindowSize);
 
-    raw_read_buffer_->resize(YamuxFrame::kInitialWindowSize + 4096);
+    raw_read_buffer_->buffer.resize(YamuxFrame::kInitialWindowSize + 4096);
     new_stream_id_ = (connection_->isInitiator() ? 1 : 2);
   }
 
@@ -229,7 +229,7 @@ namespace libp2p::connection {
 
   void YamuxedConnection::continueReading() {
     SL_TRACE(log(), "YamuxedConnection::continueReading");
-    connection_->readSome(*raw_read_buffer_, raw_read_buffer_->size(),
+    connection_->readSome(raw_read_buffer_->buffer, raw_read_buffer_->buffer.size(),
                           [wptr = weak_from_this(), buffer = raw_read_buffer_](
                               outcome::result<size_t> res) {
                             auto self = wptr.lock();
@@ -254,13 +254,13 @@ namespace libp2p::connection {
     }
 
     auto n = res.value();
-    gsl::span<uint8_t> bytes_read(*raw_read_buffer_);
+    gsl::span<uint8_t> bytes_read(raw_read_buffer_->buffer);
 
     SL_TRACE(log(), "read {} bytes", n);
 
-    assert(n <= raw_read_buffer_->size());
+    assert(n <= raw_read_buffer_->buffer.size());
 
-    if (n < raw_read_buffer_->size()) {
+    if (n < raw_read_buffer_->buffer.size()) {
       bytes_read = bytes_read.first(ssize_t(n));
     }
 

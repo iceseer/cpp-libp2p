@@ -197,8 +197,15 @@ namespace libp2p::connection {
     /// True if started
     bool started_ = false;
 
+    struct Test {
+        Buffer buffer;
+        ~Test() {
+            int p = 0; ++p;
+        }
+    };
+
     /// TODO(artem): change read() interface to reduce copying
-    std::shared_ptr<Buffer> raw_read_buffer_;
+    std::shared_ptr<Test> raw_read_buffer_;
 
     /// Buffering and segmenting
     YamuxReadingState reading_state_;
