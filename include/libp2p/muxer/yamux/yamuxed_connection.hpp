@@ -74,6 +74,7 @@ namespace libp2p::connection {
     outcome::result<void> close() override;
 
     bool isClosed() const override;
+    void printStream();
 
     void deferReadCallback(outcome::result<size_t> res,
                            ReadCallbackFunc cb) override;

@@ -6,6 +6,9 @@
 #include <libp2p/muxer/yamux/yamuxed_connection.hpp>
 
 #include <boost/asio/error.hpp>
+#include <mutex>
+#include <thread>
+#include <deque>
 
 #include <libp2p/log/logger.hpp>
 
@@ -67,12 +70,56 @@ namespace libp2p::connection {
     std::cout << "53476687231581 Destroy YamuxedConnection\n";
   }
 
+  std::mutex cs_;
+  std::deque<std::weak_ptr<YamuxedConnection>> data;
+
+  void make_sch(std::shared_ptr<basic::Scheduler> sch) {
+    sch->schedule(
+        [scheduler{std::weak_ptr<basic::Scheduler>(sch)}]() {
+          {
+            std::lock_guard l(cs_);
+            auto it = data.begin();
+            for (; it != data.end();) {
+              if (auto yc = it->lock()) {
+                yc->printStream();
+                ++it;
+              } else {
+                it = data.erase(it);
+              }
+            }
+          }
+
+          if (auto sch = scheduler.lock()) {
+            make_sch(sch);
+          }
+        },
+        std::chrono::minutes(5));
+  }
+
+  void YamuxedConnection::printStream() {
+    std::cout << "YC_PTR: " << std::hex << (uintptr_t)this << std::endl;
+    for (auto const &p : streams_) {
+      std::cout
+          << "STREAM: " << p.first
+          << ", PTR_IS_ALIVE: " << (p.second ? "YES" : "NO")
+          << ", IS_CLOSED: " << ((!p.second || p.second->isClosed()) ? "YES" : "NO")
+          << ", STREAM_PTR: " << std::hex << (uintptr_t)p.second.get()
+          << std::endl;
+    }
+  }
+
   void YamuxedConnection::start() {
     if (started_) {
       log()->error("already started (double start)");
       return;
     }
     started_ = true;
+
+    static bool scheduled = false;
+    if (!scheduled) {
+      scheduled = true;
+      make_sch(scheduler_);
+    }
 
     static constexpr auto kCleanupInterval = std::chrono::seconds(150);
     cleanup_handle_ = scheduler_->scheduleWithHandle(

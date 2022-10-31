@@ -193,8 +193,20 @@ namespace libp2p::network {
           [cb{std::move(cb)}, error{stream_res.error()}] { cb(error); });
       return;
     }
+
     auto &&stream = stream_res.value();
     auto stream_copy = stream;
+
+    std::string ppp;
+    for (auto const &prs : protocols) {
+      ppp += prs;
+      ppp += ", ";
+    }
+    std::cout
+        << "CREATE PROTOCOLS: " << ppp
+        << " FOR STREAM_PTR: " << std::hex << (uintptr_t)stream_copy.get()
+        << std::endl;
+
     multiselect_->selectOneOf(
         protocols, std::move(stream_copy), true, true,
         [stream{std::move(stream)}, cb{std::move(cb)}](
