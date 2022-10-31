@@ -71,20 +71,20 @@ namespace libp2p::connection {
   }
 
   std::mutex cs_;
-  std::deque<std::weak_ptr<YamuxedConnection>> data;
+  std::deque<std::weak_ptr<YamuxedConnection>> tb_data;
 
   void make_sch(std::shared_ptr<basic::Scheduler> sch) {
     sch->schedule(
         [scheduler{std::weak_ptr<basic::Scheduler>(sch)}]() {
           {
             std::lock_guard l(cs_);
-            auto it = data.begin();
-            for (; it != data.end();) {
+            auto it = tb_data.begin();
+            for (; it != tb_data.end();) {
               if (auto yc = it->lock()) {
                 yc->printStream();
                 ++it;
               } else {
-                it = data.erase(it);
+                it = tb_data.erase(it);
               }
             }
           }
@@ -109,6 +109,11 @@ namespace libp2p::connection {
   }
 
   void YamuxedConnection::start() {
+    {
+      std::lock_guard l(cs_);
+      tb_data.emplace_back(weak_from_this());
+    }
+
     if (started_) {
       log()->error("already started (double start)");
       return;
