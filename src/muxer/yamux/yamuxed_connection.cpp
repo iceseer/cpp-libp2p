@@ -11,8 +11,96 @@
 #include <deque>
 
 #include <libp2p/log/logger.hpp>
+#include <execinfo.h>
 
 namespace libp2p::connection {
+
+  static constexpr size_t kStackSize = 30;
+
+  struct SPTR_DESC {
+    std::string info;
+    size_t count;
+  };
+
+  std::mutex sptr_cs_;
+  std::unordered_map<size_t, SPTR_DESC> sptr_existed_;
+
+  std::mutex sptr_rcs_;
+  std::unordered_map<size_t, SPTR_DESC> sptr_deleted_;
+  static constexpr size_t kOFFSET = 0;
+
+  void storeKeeper() {
+    void *a[kStackSize];
+    auto const s = backtrace(a, kStackSize);
+    if (s <= kOFFSET) {
+      return;
+    }
+
+    auto const hash = std::_Hash_impl::hash(&a[kOFFSET], (s - kOFFSET) * sizeof(a[0]));
+    std::lock_guard lock(sptr_cs_);
+    if (auto it = sptr_existed_.find(hash); it != sptr_existed_.end()) {
+      auto &info = it->second;
+      ++info.count;
+    } else {
+      auto &info = sptr_existed_[hash];
+      char **names = backtrace_symbols(a, s);
+      for (size_t ix = kOFFSET; ix < s; ++ix) {
+        info.info += names[ix];
+        info.info += '\n';
+      }
+      free(names);
+      info.count = 1;
+    }
+  }
+
+  void removeKeeper() {
+    void *a[kStackSize];
+    auto const s = backtrace(a, kStackSize);
+    if (s <= kOFFSET) {
+      return;
+    }
+
+    auto const hash = std::_Hash_impl::hash(&a[kOFFSET], (s - kOFFSET) * sizeof(a[0]));
+    std::lock_guard lock(sptr_rcs_);
+    if (auto it = sptr_deleted_.find(hash); it != sptr_deleted_.end()) {
+      auto &info = it->second;
+      ++info.count;
+    } else {
+      auto &info = sptr_deleted_[hash];
+      char **names = backtrace_symbols(a, s);
+      for (size_t ix = kOFFSET; ix < s; ++ix) {
+        info.info += names[ix];
+        info.info += '\n';
+      }
+      free(names);
+      info.count = 1;
+    }
+  }
+
+  void printKeeper() {
+    std::lock_guard rlock(sptr_rcs_);
+    std::lock_guard lock(sptr_cs_);
+
+    std::string data;
+    data += "[SPTR KEEPER RESULT]\n[ALLOCATED]\n";
+    for (auto const &it : sptr_existed_) {
+      data += "count: ";
+      data += std::to_string(it.second.count);
+      data += '\n';
+      data += it.second.info;
+    }
+
+    data += "[REMOVED]\n";
+    for (auto const &it : sptr_deleted_) {
+      data += "count: ";
+      data += std::to_string(it.second.count);
+      data += '\n';
+      data += it.second.info;
+    }
+
+    data += '\n';
+    std::cout << data;
+  }
 
   namespace {
     const std::shared_ptr<soralog::Logger> &log() {
@@ -89,6 +177,7 @@ namespace libp2p::connection {
             }
           }
 
+          printKeeper();
           if (auto sch = scheduler.lock()) {
             make_sch(sch);
           }
