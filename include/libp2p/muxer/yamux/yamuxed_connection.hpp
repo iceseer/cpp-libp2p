@@ -21,8 +21,10 @@ namespace libp2p::connection {
 
   class YamuxedConnection;
 
-  void storeKeeper();
-  void removeKeeper();
+  template<typename T>
+  void storeKeeper(std::shared_ptr<T> const &ptr);
+  template<typename T>
+  void removeKeeper(std::shared_ptr<T> const &ptr);
 }
 
 namespace std {
@@ -57,15 +59,15 @@ namespace std {
      *  @post   use_count()==0 && get()==0
      */
     constexpr shared_ptr() noexcept : __shared_ptr<_Tp>() {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     shared_ptr(const shared_ptr& t) noexcept : __shared_ptr<_Tp>(t) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     ~shared_ptr() {
-      libp2p::connection::removeKeeper();
+      libp2p::connection::removeKeeper(*this);
     }
 
     /**
@@ -77,7 +79,7 @@ namespace std {
     template<typename _Yp, typename = _Constructible<_Yp*>>
     explicit
     shared_ptr(_Yp* __p) : __shared_ptr<_Tp>(__p) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     /**
@@ -97,7 +99,7 @@ namespace std {
         typename = _Constructible<_Yp*, _Deleter>>
     shared_ptr(_Yp* __p, _Deleter __d)
         : __shared_ptr<_Tp>(__p, std::move(__d)) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     /**
@@ -116,7 +118,7 @@ namespace std {
     template<typename _Deleter>
     shared_ptr(nullptr_t __p, _Deleter __d)
         : __shared_ptr<_Tp>(__p, std::move(__d)) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     /**
@@ -138,7 +140,7 @@ namespace std {
         typename = _Constructible<_Yp*, _Deleter, _Alloc>>
     shared_ptr(_Yp* __p, _Deleter __d, _Alloc __a)
         : __shared_ptr<_Tp>(__p, std::move(__d), std::move(__a)) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     /**
@@ -159,7 +161,7 @@ namespace std {
     template<typename _Deleter, typename _Alloc>
     shared_ptr(nullptr_t __p, _Deleter __d, _Alloc __a)
         : __shared_ptr<_Tp>(__p, std::move(__d), std::move(__a)) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     // Aliasing constructor
@@ -185,7 +187,7 @@ namespace std {
     template<typename _Yp>
     shared_ptr(const shared_ptr<_Yp>& __r, element_type* __p) noexcept
         : __shared_ptr<_Tp>(__r, __p) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
 #if __cplusplus > 201703L
@@ -226,7 +228,7 @@ namespace std {
         typename = _Constructible<const shared_ptr<_Yp>&>>
     shared_ptr(const shared_ptr<_Yp>& __r) noexcept
         : __shared_ptr<_Tp>(__r) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     /**
@@ -236,7 +238,7 @@ namespace std {
      */
     shared_ptr(shared_ptr&& __r) noexcept
         : __shared_ptr<_Tp>(std::move(__r)) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     /**
@@ -247,7 +249,7 @@ namespace std {
     template<typename _Yp, typename = _Constructible<shared_ptr<_Yp>>>
     shared_ptr(shared_ptr<_Yp>&& __r) noexcept
         : __shared_ptr<_Tp>(std::move(__r)) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     /**
@@ -261,7 +263,7 @@ namespace std {
     template<typename _Yp, typename = _Constructible<const weak_ptr<_Yp>&>>
     explicit shared_ptr(const weak_ptr<_Yp>& __r)
         : __shared_ptr<_Tp>(__r) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
 #if _GLIBCXX_USE_DEPRECATED
@@ -278,7 +280,7 @@ namespace std {
         typename = _Constructible<unique_ptr<_Yp, _Del>>>
     shared_ptr(unique_ptr<_Yp, _Del>&& __r)
         : __shared_ptr<_Tp>(std::move(__r)) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
 #if __cplusplus <= 201402L && _GLIBCXX_USE_DEPRECATED
@@ -296,7 +298,6 @@ namespace std {
      *  @post   use_count() == 0 && get() == nullptr
      */
     constexpr shared_ptr(nullptr_t) noexcept : shared_ptr() {
-      libp2p::connection::storeKeeper();
     }
 
     shared_ptr& operator=(const shared_ptr&) noexcept = default;
@@ -351,7 +352,7 @@ namespace std {
     shared_ptr(_Sp_alloc_shared_tag<_Alloc> __tag, _Args&&... __args)
         : __shared_ptr<_Tp>(__tag, std::forward<_Args>(__args)...)
     {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     template<typename _Yp, typename _Alloc, typename... _Args>
@@ -361,7 +362,7 @@ namespace std {
     // This constructor is non-standard, it is used by weak_ptr::lock().
     shared_ptr(const weak_ptr<_Tp>& __r, std::nothrow_t)
         : __shared_ptr<_Tp>(__r, std::nothrow) {
-      libp2p::connection::storeKeeper();
+      libp2p::connection::storeKeeper(*this);
     }
 
     friend class weak_ptr<_Tp>;

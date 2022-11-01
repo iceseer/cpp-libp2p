@@ -9,6 +9,7 @@
 #include <mutex>
 #include <thread>
 #include <deque>
+#include <sstream>
 
 #include <libp2p/log/logger.hpp>
 #include <execinfo.h>
@@ -19,18 +20,68 @@ namespace libp2p::connection {
 
   struct SPTR_DESC {
     std::string info;
-    size_t count;
+    size_t count = 0ull;
   };
 
-  std::mutex sptr_cs_;
-  std::unordered_map<size_t, SPTR_DESC> sptr_existed_;
+  struct SPTR_TOTAL {
+    std::unordered_map<size_t, SPTR_DESC> desc;
+    int64_t count = 0ll;
+  };
 
-  std::mutex sptr_rcs_;
-  std::unordered_map<size_t, SPTR_DESC> sptr_deleted_;
+  template<typename T>
+  struct SPTR_T {
+    std::string info;
+    std::weak_ptr<T> ptr;
+  };
+
+  template<typename T>
+  std::pair<std::reference_wrapper<std::mutex>, std::reference_wrapper<std::unordered_map<uintptr_t, SPTR_T<T>>>>
+      getInstanceOf() {
+    static std::mutex sptr_cs_;
+    static std::unordered_map<uintptr_t, SPTR_T<T>> sptr_existed_;
+
+    return std::pair<std::reference_wrapper<std::mutex>, std::reference_wrapper<std::unordered_map<uintptr_t, SPTR_T<T>>>>(sptr_cs_, sptr_existed_);
+  }
+
+  template<typename T, typename F>
+  static void forStack(F&&func) {
+    auto [ref_m, ref_con] = getInstanceOf<T>();
+    std::lock_guard lock(ref_m.get());
+    std::forward<F>(func)(ref_con.get());
+  }
+
   static constexpr size_t kOFFSET = 0;
 
-  void storeKeeper() {
+  template<typename T>
+  void storeKeeper(std::shared_ptr<T> const &ptr) {
     void *a[kStackSize];
+    auto const s = backtrace(a, kStackSize);
+    if (s <= kOFFSET) {
+      return;
+    }
+    //auto const hash = std::_Hash_impl::hash(&a[kOFFSET], (s - kOFFSET) * sizeof(a[0]));
+    forStack<T>([&](std::unordered_map<uintptr_t, SPTR_T<T>> &sptr_existed_) {
+      assert(sptr_existed_.count((uintptr_t)&ptr) == 0ull);
+      SPTR_T<T> &desc = sptr_existed_[(uintptr_t)&ptr];
+      desc.ptr = ptr;
+
+      char **names = backtrace_symbols(a, s);
+      for (size_t ix = kOFFSET; ix < s; ++ix) {
+        desc.info += names[ix];
+        desc.info += '\n';
+      }
+      free(names);
+    });
+  }
+
+  template<typename T>
+  void removeKeeper(std::shared_ptr<T> const &ptr) {
+    forStack<T>([&](std::unordered_map<uintptr_t, SPTR_T<T>> &sptr_existed_) {
+      assert(sptr_existed_.count((uintptr_t)&ptr) != 0ull);
+      sptr_existed_.erase((uintptr_t)&ptr);
+    });
+
+    /*void *a[kStackSize];
     auto const s = backtrace(a, kStackSize);
     if (s <= kOFFSET) {
       return;
@@ -38,68 +89,51 @@ namespace libp2p::connection {
 
     auto const hash = std::_Hash_impl::hash(&a[kOFFSET], (s - kOFFSET) * sizeof(a[0]));
     std::lock_guard lock(sptr_cs_);
-    if (auto it = sptr_existed_.find(hash); it != sptr_existed_.end()) {
-      auto &info = it->second;
-      ++info.count;
-    } else {
-      auto &info = sptr_existed_[hash];
-      char **names = backtrace_symbols(a, s);
-      for (size_t ix = kOFFSET; ix < s; ++ix) {
-        info.info += names[ix];
-        info.info += '\n';
-      }
-      free(names);
-      info.count = 1;
-    }
-  }
 
-  void removeKeeper() {
-    void *a[kStackSize];
-    auto const s = backtrace(a, kStackSize);
-    if (s <= kOFFSET) {
+    assert(sptr_existed_.count((uintptr_t)ptr.get()) != 0ull);
+    SPTR_TOTAL &desc = sptr_existed_[(uintptr_t)ptr.get()];
+
+    assert(desc.count != 0ull);
+    --desc.count;
+    if (desc.count == 0ull) {
+      sptr_existed_.erase((uintptr_t)ptr.get());
       return;
     }
 
-    auto const hash = std::_Hash_impl::hash(&a[kOFFSET], (s - kOFFSET) * sizeof(a[0]));
-    std::lock_guard lock(sptr_rcs_);
-    if (auto it = sptr_deleted_.find(hash); it != sptr_deleted_.end()) {
-      auto &info = it->second;
-      ++info.count;
-    } else {
-      auto &info = sptr_deleted_[hash];
+    SPTR_DESC &stack = desc.desc[hash];
+    ++stack.count;
+
+    if (stack.info.empty()) {
+      stack.info += "R ";
       char **names = backtrace_symbols(a, s);
       for (size_t ix = kOFFSET; ix < s; ++ix) {
-        info.info += names[ix];
-        info.info += '\n';
+        stack.info += names[ix];
+        stack.info += '\n';
       }
       free(names);
-      info.count = 1;
-    }
+    }*/
   }
 
   void printKeeper() {
-    std::lock_guard rlock(sptr_rcs_);
-    std::lock_guard lock(sptr_cs_);
-
-    std::string data;
-    data += "[SPTR KEEPER RESULT]\n[ALLOCATED]\n";
-    for (auto const &it : sptr_existed_) {
-      data += "count: ";
-      data += std::to_string(it.second.count);
-      data += '\n';
-      data += it.second.info;
-    }
-
-    data += "[REMOVED]\n";
-    for (auto const &it : sptr_deleted_) {
-      data += "count: ";
-      data += std::to_string(it.second.count);
-      data += '\n';
-      data += it.second.info;
-    }
-
-    data += '\n';
-    std::cout << data;
+    std::stringstream data;
+    forStack<YamuxedConnection>([&](std::unordered_map<uintptr_t, SPTR_T<YamuxedConnection>> &sptr_existed_) {
+      data << "[YamuxedConnection SPTR KEEPER RESULT]\n";
+      for (auto const &it : sptr_existed_) {
+        if (!it.second.ptr.expired()) {
+          data << "PTR: " << std::hex << it.first << std::endl;
+          data << it.second.info;
+        }
+      }
+    });
+    forStack<CapableConnection>([&](std::unordered_map<uintptr_t, SPTR_T<CapableConnection>> &sptr_existed_) {
+      data << "[CapableConnection SPTR KEEPER RESULT]\n";
+      for (auto const &it : sptr_existed_) {
+        if (!it.second.ptr.expired()) {
+          data << "PTR: " << std::hex << it.first << std::endl;
+          data << it.second.info;
+        }
+      }
+    });
   }
 
   namespace {
